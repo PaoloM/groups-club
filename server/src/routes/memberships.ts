@@ -55,32 +55,6 @@ router.delete('/leave', requireAuth, async (req: Request, res: Response, next: N
       return res.status(404).json({ error: 'You are not a member of this group.' });
     }
 
-    if (membership.role === 'owner') {
-      const nextAdmin = await prisma.membership.findFirst({
-        where: { groupId: group.id, role: 'admin', userId: { not: userId } },
-        orderBy: { joinedAt: 'asc' },
-      });
-
-      if (nextAdmin) {
-        await prisma.membership.update({
-          where: { id: nextAdmin.id },
-          data: { role: 'owner' },
-        });
-      } else {
-        const nextMember = await prisma.membership.findFirst({
-          where: { groupId: group.id, userId: { not: userId } },
-          orderBy: { joinedAt: 'asc' },
-        });
-
-        if (nextMember) {
-          await prisma.membership.update({
-            where: { id: nextMember.id },
-            data: { role: 'owner' },
-          });
-        }
-      }
-    }
-
     await prisma.membership.delete({ where: { id: membership.id } });
 
     const remaining = await prisma.membership.count({ where: { groupId: group.id } });
@@ -134,13 +108,15 @@ router.patch('/members/:id', requireMember('admin'), async (req: Request, res: R
       return res.status(404).json({ error: 'Membership not found in this group.' });
     }
 
-    if (target.role === 'owner') {
-      return res.status(403).json({ error: "Cannot change the owner's role." });
+    const isSiteOwner = (req.user as any).isSiteOwner;
+
+    // Only site owner can promote to admin or demote admins
+    if (role === 'admin' && !isSiteOwner) {
+      return res.status(403).json({ error: 'Only the site owner can promote to admin.' });
     }
 
-    const currentRole = (req as any).membership.role;
-    if (role === 'admin' && currentRole !== 'owner') {
-      return res.status(403).json({ error: 'Only the owner can promote to admin.' });
+    if (target.role === 'admin' && !isSiteOwner) {
+      return res.status(403).json({ error: 'Only the site owner can change admin roles.' });
     }
 
     const updated = await prisma.membership.update({
@@ -167,13 +143,11 @@ router.delete('/members/:id', requireMember('admin'), async (req: Request, res: 
       return res.status(404).json({ error: 'Membership not found in this group.' });
     }
 
-    if (target.role === 'owner') {
-      return res.status(403).json({ error: 'Cannot remove the owner.' });
-    }
+    const isSiteOwner = (req.user as any).isSiteOwner;
 
-    const currentRole = (req as any).membership.role;
-    if (target.role === 'admin' && currentRole !== 'owner') {
-      return res.status(403).json({ error: 'Only the owner can remove admins.' });
+    // Only site owner can remove admins
+    if (target.role === 'admin' && !isSiteOwner) {
+      return res.status(403).json({ error: 'Only the site owner can remove admins.' });
     }
 
     await prisma.membership.delete({ where: { id: target.id } });

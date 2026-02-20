@@ -6,7 +6,7 @@ export function renderLayout(): string {
     <main id="page" class="container py-4"></main>
     <footer class="bg-light py-3 mt-auto">
       <div class="container text-center text-muted">
-        <small>&copy; ${new Date().getFullYear()} groups.club</small>
+        <small>&copy; ${new Date().getFullYear()} mygroups.club</small>
       </div>
     </footer>
   `;

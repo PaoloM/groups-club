@@ -74,12 +74,12 @@ async function main() {
   // Memberships
   await prisma.membership.createMany({
     data: [
-      { userId: alice.id, groupId: bookClub.id, role: 'owner' },
+      { userId: alice.id, groupId: bookClub.id, role: 'admin' },
       { userId: bob.id, groupId: bookClub.id, role: 'member' },
       { userId: carol.id, groupId: bookClub.id, role: 'admin' },
-      { userId: bob.id, groupId: hikers.id, role: 'owner' },
+      { userId: bob.id, groupId: hikers.id, role: 'admin' },
       { userId: alice.id, groupId: hikers.id, role: 'member' },
-      { userId: carol.id, groupId: devs.id, role: 'owner' },
+      { userId: carol.id, groupId: devs.id, role: 'admin' },
       { userId: bob.id, groupId: devs.id, role: 'member' },
     ],
   });

@@ -6,6 +6,7 @@ import { updateNavbar } from './components/navbar.js';
 import { setupRoutes, router } from './router.js';
 import { logout } from './api/auth.js';
 import { setUser } from './auth/state.js';
+import { getSetupStatus } from './api/setup.js';
 
 async function main() {
   const app = document.getElementById('app')!;
@@ -14,6 +15,20 @@ async function main() {
   // Initialize auth state
   await initAuth();
   updateNavbar();
+
+  // Check if setup is needed
+  const { needsSetup } = await getSetupStatus();
+  if (needsSetup) {
+    const page = document.getElementById('page');
+    if (page) {
+      const nav = document.querySelector('.navbar');
+      if (nav) (nav as HTMLElement).style.display = 'none';
+      const { renderSetup, initSetup } = await import('./pages/setup.js');
+      page.innerHTML = renderSetup();
+      initSetup();
+    }
+    return;
+  }
 
   // Update navbar when auth changes
   onAuthChange(() => {

@@ -3,6 +3,7 @@ import { getGroup } from '../api/groups.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
 import { formatDate } from '../utils/dates.js';
 import { renderEmptyState } from '../components/emptyState.js';
+import { renderAvatar } from '../components/avatar.js';
 import { router } from '../router.js';
 
 export async function renderThreadList(slug: string): Promise<string> {
@@ -16,7 +17,7 @@ export async function renderThreadList(slug: string): Promise<string> {
           <div>
             ${t.isPinned ? '<span class="badge bg-warning text-dark me-2">Pinned</span>' : ''}
             <strong>${escapeHtml(t.title)}</strong>
-            <br><small class="text-muted">by ${escapeHtml(t.author.name)} &middot; ${formatDate(t.createdAt)}</small>
+            <br><small class="text-muted">${renderAvatar(t.author, 20)} ${escapeHtml(t.author.name)} &middot; ${formatDate(t.createdAt)}</small>
           </div>
           <span class="badge bg-secondary">${t.postCount} comment${t.postCount !== 1 ? 's' : ''}</span>
         </a>

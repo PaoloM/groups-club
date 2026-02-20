@@ -7,6 +7,9 @@ export interface PostNode {
   createdAt: string;
   updatedAt: string;
   author: { id: string; name: string; avatarUrl: string | null };
+  attachments: { id: string; filename: string; url: string }[];
+  likeCount: number;
+  userLiked: boolean;
   children: PostNode[];
 }
 

@@ -1,4 +1,4 @@
-# Implementation Plan: groups.club
+# Implementation Plan: mygroups.club
 
 ## Context
 

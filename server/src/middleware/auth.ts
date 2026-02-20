@@ -9,7 +9,17 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-export function requireMember(roleLevel?: 'admin' | 'owner') {
+export function requireSiteOwner(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  if (!(req.user as any).isSiteOwner) {
+    return res.status(403).json({ error: 'Site owner access required.' });
+  }
+  next();
+}
+
+export function requireMember(roleLevel?: 'admin') {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: 'Authentication required.' });
@@ -26,6 +36,13 @@ export function requireMember(roleLevel?: 'admin' | 'owner') {
         return res.status(404).json({ error: 'Group not found.' });
       }
 
+      // Site owner bypasses membership requirement
+      if ((req.user as any).isSiteOwner) {
+        (req as any).group = group;
+        (req as any).membership = null;
+        return next();
+      }
+
       const membership = await prisma.membership.findUnique({
         where: { userId_groupId: { userId: (req.user as any).id, groupId: group.id } },
       });
@@ -35,11 +52,7 @@ export function requireMember(roleLevel?: 'admin' | 'owner') {
       }
 
       if (roleLevel === 'admin' && membership.role === 'member') {
-        return res.status(403).json({ error: 'Admin or owner access required.' });
-      }
-
-      if (roleLevel === 'owner' && membership.role !== 'owner') {
-        return res.status(403).json({ error: 'Owner access required.' });
+        return res.status(403).json({ error: 'Admin access required.' });
       }
 
       (req as any).group = group;

@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import slugify from 'slugify';
 import prisma from '../lib/prisma.js';
-import { requireAuth, requireMember } from '../middleware/auth.js';
+import { requireAuth, requireMember, requireSiteOwner } from '../middleware/auth.js';
 import { validate } from '../middleware/validation.js';
 import { paramString } from '../types.js';
 
@@ -31,13 +31,17 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     const groups = await prisma.group.findMany({
       where,
-      include: { _count: { select: { memberships: true } } },
+      include: {
+        _count: { select: { memberships: true } },
+        coverAttachment: { select: { path: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
     const result = groups.map((g) => {
-      const { _count, ...rest } = g;
-      return { ...rest, memberCount: _count.memberships };
+      const { _count, coverAttachment, ...rest } = g;
+      const imageUrl = coverAttachment ? `/uploads/${coverAttachment.path}` : rest.imageUrl;
+      return { ...rest, imageUrl, memberCount: _count.memberships };
     });
 
     res.json({ groups: result });
@@ -72,7 +76,7 @@ router.post(
       });
 
       await prisma.membership.create({
-        data: { userId, groupId: group.id, role: 'owner' },
+        data: { userId, groupId: group.id, role: 'admin' },
       });
 
       res.status(201).json({ group });
@@ -91,6 +95,7 @@ router.get('/:slug', async (req: Request, res: Response, next: NextFunction) => 
       include: {
         createdBy: { select: { id: true, name: true, avatarUrl: true } },
         _count: { select: { memberships: true, threads: true } },
+        coverAttachment: { select: { path: true } },
       },
     });
 
@@ -99,15 +104,18 @@ router.get('/:slug', async (req: Request, res: Response, next: NextFunction) => 
     }
 
     if (!group.isPublic) {
-      const userId = (req.user as any)?.id;
-      if (!userId) {
-        return res.status(403).json({ error: 'This group is private.' });
-      }
-      const membership = await prisma.membership.findUnique({
-        where: { userId_groupId: { userId, groupId: group.id } },
-      });
-      if (!membership) {
-        return res.status(403).json({ error: 'This group is private.' });
+      const isSiteOwner = (req.user as any)?.isSiteOwner;
+      if (!isSiteOwner) {
+        const userId = (req.user as any)?.id;
+        if (!userId) {
+          return res.status(403).json({ error: 'This group is private.' });
+        }
+        const membership = await prisma.membership.findUnique({
+          where: { userId_groupId: { userId, groupId: group.id } },
+        });
+        if (!membership) {
+          return res.status(403).json({ error: 'This group is private.' });
+        }
       }
     }
 
@@ -118,10 +126,12 @@ router.get('/:slug', async (req: Request, res: Response, next: NextFunction) => 
       });
     }
 
-    const { _count, ...rest } = group;
+    const { _count, coverAttachment, ...rest } = group;
+    const imageUrl = coverAttachment ? `/uploads/${coverAttachment.path}` : rest.imageUrl;
     res.json({
       group: {
         ...rest,
+        imageUrl,
         memberCount: _count.memberships,
         threadCount: _count.threads,
         currentUserMembership: currentUserMembership
@@ -166,7 +176,7 @@ router.patch(
 // DELETE /api/groups/:slug
 router.delete(
   '/:slug',
-  requireMember('owner'),
+  requireSiteOwner,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const slug = paramString(req.params.slug);

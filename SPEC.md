@@ -1,4 +1,4 @@
-# Project Spec: groups.club
+# Project Spec: mygroups.club
 
 ## Overview
 
@@ -15,7 +15,7 @@ A simple replacement for Facebook groups, providing the ability for users to joi
 ## Project Structure
 
 ```
-groups.club/
+mygroups.club/
 ├── server/              # Express backend
 │   ├── src/
 │   │   ├── routes/      # Express route handlers

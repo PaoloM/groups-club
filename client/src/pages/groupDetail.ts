@@ -33,21 +33,31 @@ export async function renderGroupDetail(slug: string): Promise<string> {
       threadsHtml = '';
     }
 
+    const isSiteOwner = user?.isSiteOwner;
+    const canManage = isSiteOwner || (membership && membership.role === 'admin');
+    const settingsBtn = canManage
+      ? `<a href="/groups/${escapeHtml(slug)}/settings" class="btn btn-outline-secondary" data-navigo>Settings</a>`
+      : '';
+
     const actionButtons = user
       ? membership
         ? `<div class="d-flex gap-2 flex-wrap">
              <a href="/groups/${escapeHtml(slug)}/threads/new" class="btn btn-primary" data-navigo>New Thread</a>
              <a href="/groups/${escapeHtml(slug)}/members" class="btn btn-outline-secondary" data-navigo>Members</a>
-             ${membership.role === 'admin' || membership.role === 'owner'
-               ? `<a href="/groups/${escapeHtml(slug)}/settings" class="btn btn-outline-secondary" data-navigo>Settings</a>`
-               : ''
-             }
+             ${settingsBtn}
              <button class="btn btn-outline-danger" id="leave-btn">Leave</button>
            </div>`
-        : `<button class="btn btn-primary" id="join-btn">Join Group</button>`
+        : isSiteOwner
+          ? `<div class="d-flex gap-2 flex-wrap">
+               ${settingsBtn}
+               <a href="/groups/${escapeHtml(slug)}/members" class="btn btn-outline-secondary" data-navigo>Members</a>
+               <button class="btn btn-primary" id="join-btn">Join Group</button>
+             </div>`
+          : `<button class="btn btn-primary" id="join-btn">Join Group</button>`
       : `<a href="/login" class="btn btn-primary" data-navigo>Log in to join</a>`;
 
     return `
+      ${group.imageUrl ? `<div class="mb-4"><img src="${escapeHtml(group.imageUrl)}" alt="${escapeHtml(group.name)} cover" class="w-100 rounded" style="max-height:280px;object-fit:cover"></div>` : ''}
       <div class="row">
         <div class="col-lg-8">
           <div class="d-flex justify-content-between align-items-start mb-3">

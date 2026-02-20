@@ -1,5 +1,5 @@
 {
-  "name": "groups.club",
+  "name": "mygroups.club",
   "private": true,
   "workspaces": [
     "server",

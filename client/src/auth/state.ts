@@ -5,6 +5,7 @@ type User = {
   name: string;
   email: string;
   avatarUrl: string | null;
+  isSiteOwner: boolean;
 };
 
 type AuthListener = (user: User | null) => void;

@@ -10,6 +10,7 @@ declare global {
       password: string | null;
       googleId: string | null;
       avatarUrl: string | null;
+      isSiteOwner: boolean;
       createdAt: Date;
     }
   }

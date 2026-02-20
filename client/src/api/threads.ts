@@ -8,7 +8,18 @@ export function getThread(slug: string, threadId: string) {
   return api.get<{ thread: any }>(`/api/groups/${slug}/threads/${threadId}`);
 }
 
-export function createThread(slug: string, data: { title: string; body: string }) {
+export function createThread(slug: string, data: { title: string; body: string }, files?: File[]) {
+  if (files && files.length > 0) {
+    const fd = new FormData();
+    fd.append('title', data.title);
+    fd.append('body', data.body);
+    files.forEach((f) => fd.append('files', f));
+    return fetch(`/api/groups/${slug}/threads`, { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(async (res) => {
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || res.statusText); }
+        return res.json() as Promise<{ thread: any }>;
+      });
+  }
   return api.post<{ thread: any }>(`/api/groups/${slug}/threads`, data);
 }
 

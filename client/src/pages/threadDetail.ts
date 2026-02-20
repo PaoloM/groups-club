@@ -3,10 +3,13 @@ import { getGroup } from '../api/groups.js';
 import { renderMarkdown } from '../components/markdown.js';
 import { renderPostTree } from '../components/postTree.js';
 import { renderPostForm } from '../components/postForm.js';
+import { renderAttachmentGallery } from '../components/attachmentGallery.js';
+import { renderAttachmentPicker, initAttachmentPicker } from '../components/attachmentPicker.js';
 import { buildPostTree } from '../utils/tree.js';
 import { getUser } from '../auth/state.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
 import { formatDate } from '../utils/dates.js';
+import { renderAvatar } from '../components/avatar.js';
 import { router } from '../router.js';
 
 export async function renderThreadDetail(slug: string, threadId: string): Promise<string> {
@@ -19,7 +22,8 @@ export async function renderThreadDetail(slug: string, threadId: string): Promis
     const user = getUser();
     const membership = group.currentUserMembership;
     const isAuthor = user && thread.authorId === user.id;
-    const isAdminOrOwner = membership && (membership.role === 'admin' || membership.role === 'owner');
+    const isSiteOwner = user?.isSiteOwner;
+    const isAdminOrOwner = isSiteOwner || (membership && membership.role === 'admin');
     const canEdit = isAuthor || isAdminOrOwner;
 
     const tree = buildPostTree(thread.posts);
@@ -32,7 +36,7 @@ export async function renderThreadDetail(slug: string, threadId: string): Promis
             ${thread.isPinned ? '<span class="badge bg-warning text-dark me-2">Pinned</span>' : ''}
             <h2>${escapeHtml(thread.title)}</h2>
             <p class="text-muted">
-              by <a href="/profile/${thread.author.id}" data-navigo>${escapeHtml(thread.author.name)}</a>
+              ${renderAvatar(thread.author, 28)} by <a href="/profile/${thread.author.id}" data-navigo>${escapeHtml(thread.author.name)}</a>
               &middot; ${formatDate(thread.createdAt)}
               ${thread.updatedAt !== thread.createdAt ? ' &middot; edited' : ''}
             </p>
@@ -49,7 +53,10 @@ export async function renderThreadDetail(slug: string, threadId: string): Promis
           ` : ''}
         </div>
         <div class="card mb-4">
-          <div class="card-body" id="thread-body">${renderMarkdown(thread.body)}</div>
+          <div class="card-body" id="thread-body">
+            ${renderMarkdown(thread.body)}
+            ${renderAttachmentGallery(thread.attachments)}
+          </div>
         </div>
         <h4 class="mb-3">${thread.posts.length} Comment${thread.posts.length !== 1 ? 's' : ''}</h4>
         ${membership ? renderPostForm(slug, threadId) : '<p class="text-muted">Join this group to comment.</p>'}
@@ -112,6 +119,8 @@ function initPostFormHandler(slug: string, threadId: string) {
   const form = document.getElementById('post-form') as HTMLFormElement | null;
   if (!form) return;
 
+  const picker = initAttachmentPicker('post-attach');
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const bodyInput = form.querySelector('textarea') as HTMLTextAreaElement;
@@ -122,9 +131,11 @@ function initPostFormHandler(slug: string, threadId: string) {
     btn.disabled = true;
     btn.textContent = 'Posting...';
 
+    const files = picker.getFiles();
+
     try {
       const { createPost } = await import('../api/posts.js');
-      await createPost(slug, threadId, { body });
+      await createPost(slug, threadId, { body }, files.length > 0 ? files : undefined);
       await reloadThread(slug, threadId);
     } catch (err: any) {
       alert(err.message);
@@ -147,9 +158,11 @@ function initCommentActions(slug: string, threadId: string) {
         return;
       }
 
+      const replyPickerId = `reply-attach-${parentId}`;
       container.innerHTML = `
         <form class="reply-form mt-2" data-parent-id="${parentId}">
           <textarea class="form-control form-control-sm mb-2" rows="2" required placeholder="Write a reply..."></textarea>
+          ${renderAttachmentPicker(replyPickerId)}
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-sm btn-primary">Reply</button>
             <button type="button" class="btn btn-sm btn-outline-secondary cancel-reply">Cancel</button>
@@ -157,6 +170,7 @@ function initCommentActions(slug: string, threadId: string) {
         </form>
       `;
 
+      const replyPicker = initAttachmentPicker(replyPickerId);
       const replyForm = container.querySelector('form')!;
       replyForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -168,9 +182,11 @@ function initCommentActions(slug: string, threadId: string) {
         replyBtn.disabled = true;
         replyBtn.textContent = 'Posting...';
 
+        const files = replyPicker.getFiles();
+
         try {
           const { createPost } = await import('../api/posts.js');
-          await createPost(slug, threadId, { body, parentId });
+          await createPost(slug, threadId, { body, parentId }, files.length > 0 ? files : undefined);
           await reloadThread(slug, threadId);
         } catch (err: any) {
           alert(err.message);
@@ -182,6 +198,20 @@ function initCommentActions(slug: string, threadId: string) {
       container.querySelector('.cancel-reply')?.addEventListener('click', () => {
         container.innerHTML = '';
       });
+    });
+  });
+
+  // Like buttons
+  document.querySelectorAll('[data-like-post]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const postId = (btn as HTMLElement).dataset.likePost!;
+      try {
+        const { toggleLike } = await import('../api/posts.js');
+        await toggleLike(postId);
+        await reloadThread(slug, threadId);
+      } catch (err: any) {
+        alert(err.message);
+      }
     });
   });
 

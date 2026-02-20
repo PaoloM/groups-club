@@ -10,11 +10,16 @@ import groupRoutes from './routes/groups.js';
 import membershipRoutes from './routes/memberships.js';
 import threadRoutes from './routes/threads.js';
 import postRoutes from './routes/posts.js';
+import uploadRoutes from './routes/upload.js';
+import setupRoutes from './routes/setup.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(express.json());
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use(sessionMiddleware);
 app.use(passport.initialize());
 app.use(passport.session());
@@ -24,6 +29,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.use('/api/setup', setupRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/groups', groupRoutes);
@@ -31,6 +37,8 @@ app.use('/api/groups/:slug', membershipRoutes);
 app.use('/api/groups/:slug/threads', threadRoutes);
 app.use('/api/groups/:slug/threads/:id/posts', postRoutes);
 app.use('/api/posts', postRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api', uploadRoutes); // for DELETE /api/attachments/:id
 
 // Error handler
 app.use(errorHandler);

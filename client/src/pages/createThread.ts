@@ -1,5 +1,6 @@
 import { createThread } from '../api/threads.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
+import { renderAttachmentPicker, initAttachmentPicker } from '../components/attachmentPicker.js';
 import { router } from '../router.js';
 
 export function renderCreateThread(slug: string): string {
@@ -18,7 +19,10 @@ export function renderCreateThread(slug: string): string {
             <label for="body" class="form-label">Body</label>
             <textarea class="form-control" id="body" rows="8" required placeholder="Supports Markdown"></textarea>
           </div>
-          <button type="submit" class="btn btn-primary">Create Thread</button>
+          <div class="mb-3">
+            ${renderAttachmentPicker('thread-attach')}
+          </div>
+          <button type="submit" class="btn btn-primary" id="create-thread-btn">Create Thread</button>
         </form>
       </div>
     </div>
@@ -28,20 +32,28 @@ export function renderCreateThread(slug: string): string {
 export function initCreateThread(slug: string) {
   const form = document.getElementById('create-thread-form') as HTMLFormElement;
   const errorEl = document.getElementById('create-error')!;
+  const picker = initAttachmentPicker('thread-attach');
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.classList.add('d-none');
 
+    const btn = document.getElementById('create-thread-btn') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
     const title = (document.getElementById('title') as HTMLInputElement).value;
     const body = (document.getElementById('body') as HTMLTextAreaElement).value;
+    const files = picker.getFiles();
 
     try {
-      const { thread } = await createThread(slug, { title, body });
+      const { thread } = await createThread(slug, { title, body }, files.length > 0 ? files : undefined);
       router.navigate(`/groups/${slug}/threads/${thread.id}`);
     } catch (err: any) {
       errorEl.textContent = err.message;
       errorEl.classList.remove('d-none');
+      btn.disabled = false;
+      btn.textContent = 'Create Thread';
     }
   });
 

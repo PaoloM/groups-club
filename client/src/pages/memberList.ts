@@ -14,29 +14,29 @@ export async function renderMemberList(slug: string): Promise<string> {
 
     const user = getUser();
     const myMembership = group.currentUserMembership;
-    const isAdminOrOwner = myMembership && (myMembership.role === 'admin' || myMembership.role === 'owner');
-    const isOwner = myMembership && myMembership.role === 'owner';
+    const isSiteOwner = user?.isSiteOwner;
+    const isAdmin = myMembership && myMembership.role === 'admin';
 
-    const roleColors: Record<string, string> = { owner: 'primary', admin: 'success', member: 'secondary' };
+    const roleColors: Record<string, string> = { admin: 'success', member: 'secondary' };
 
     const rows = members.map((m: any) => {
       const isMe = user && m.userId === user.id;
       let actions = '';
 
-      if (isAdminOrOwner && !isMe && m.role !== 'owner') {
-        const roleOptions = isOwner
-          ? `<option value="admin" ${m.role === 'admin' ? 'selected' : ''}>Admin</option>
-             <option value="member" ${m.role === 'member' ? 'selected' : ''}>Member</option>`
-          : '';
-
-        actions = `
-          ${isOwner ? `
+      if (!isMe) {
+        // Site owner can change roles and remove anyone
+        if (isSiteOwner) {
+          actions = `
             <select class="form-select form-select-sm d-inline-block w-auto me-2" data-role-change="${m.id}">
-              ${roleOptions}
+              <option value="admin" ${m.role === 'admin' ? 'selected' : ''}>Admin</option>
+              <option value="member" ${m.role === 'member' ? 'selected' : ''}>Member</option>
             </select>
-          ` : ''}
-          <button class="btn btn-sm btn-outline-danger" data-remove-member="${m.id}">Remove</button>
-        `;
+            <button class="btn btn-sm btn-outline-danger" data-remove-member="${m.id}">Remove</button>
+          `;
+        } else if (isAdmin && m.role === 'member') {
+          // Admins can only remove regular members
+          actions = `<button class="btn btn-sm btn-outline-danger" data-remove-member="${m.id}">Remove</button>`;
+        }
       }
 
       return `

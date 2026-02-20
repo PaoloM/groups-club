@@ -1,4 +1,5 @@
 import { getGroup, updateGroup, deleteGroup } from '../api/groups.js';
+import { getUser } from '../auth/state.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
 import { router } from '../router.js';
 
@@ -6,8 +7,10 @@ export async function renderGroupSettings(slug: string): Promise<string> {
   try {
     const { group } = await getGroup(slug);
     const membership = group.currentUserMembership;
+    const user = getUser();
+    const isSiteOwner = user?.isSiteOwner;
 
-    if (!membership || (membership.role !== 'admin' && membership.role !== 'owner')) {
+    if (!isSiteOwner && (!membership || membership.role !== 'admin')) {
       return '<p class="text-danger">You do not have permission to view group settings.</p>';
     }
 
@@ -15,6 +18,7 @@ export async function renderGroupSettings(slug: string): Promise<string> {
       <a href="/groups/${escapeHtml(slug)}" data-navigo class="text-decoration-none">&larr; ${escapeHtml(group.name)}</a>
       <h2 class="mt-3 mb-4">Group Settings</h2>
       <div id="settings-error" class="alert alert-danger d-none"></div>
+      <div id="settings-success" class="alert alert-success d-none">Settings saved.</div>
       <form id="settings-form">
         <div class="mb-3">
           <label for="name" class="form-label">Group name</label>
@@ -25,16 +29,33 @@ export async function renderGroupSettings(slug: string): Promise<string> {
           <textarea class="form-control" id="description" rows="6" required>${escapeHtml(group.description)}</textarea>
         </div>
         <div class="mb-3">
-          <label for="imageUrl" class="form-label">Cover image URL</label>
-          <input type="url" class="form-control" id="imageUrl" value="${escapeHtml(group.imageUrl || '')}">
+          <label class="form-label">Cover image</label>
+          ${group.imageUrl ? `<div class="mb-2"><img src="${escapeHtml(group.imageUrl)}" class="rounded border" style="max-height:140px;max-width:100%;object-fit:cover"></div>` : ''}
+          <ul class="nav nav-tabs mb-2" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#cover-upload-tab">Upload</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#cover-url-tab">URL</a></li>
+          </ul>
+          <div class="tab-content">
+            <div class="tab-pane fade show active" id="cover-upload-tab">
+              <label class="btn btn-outline-secondary btn-sm">
+                Choose file
+                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" class="d-none" id="cover-file">
+              </label>
+              <span class="text-muted small ms-2" id="cover-file-name"></span>
+              <div id="cover-preview" class="mt-2"></div>
+            </div>
+            <div class="tab-pane fade" id="cover-url-tab">
+              <input type="url" class="form-control" id="imageUrl" value="${escapeHtml(group.imageUrl || '')}">
+            </div>
+          </div>
         </div>
         <div class="mb-3 form-check">
           <input type="checkbox" class="form-check-input" id="isPublic" ${group.isPublic ? 'checked' : ''}>
           <label class="form-check-label" for="isPublic">Public group</label>
         </div>
-        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <button type="submit" class="btn btn-primary" id="save-btn">Save Changes</button>
       </form>
-      ${membership.role === 'owner' ? `
+      ${isSiteOwner ? `
         <hr class="my-4">
         <h4 class="text-danger">Danger Zone</h4>
         <p>Deleting a group is permanent and removes all threads and memberships.</p>
@@ -49,11 +70,38 @@ export async function renderGroupSettings(slug: string): Promise<string> {
 export function initGroupSettings(slug: string) {
   const form = document.getElementById('settings-form') as HTMLFormElement | null;
   const errorEl = document.getElementById('settings-error');
+  const successEl = document.getElementById('settings-success');
+  const fileInput = document.getElementById('cover-file') as HTMLInputElement | null;
+  const fileNameEl = document.getElementById('cover-file-name');
+  const previewEl = document.getElementById('cover-preview');
+  let coverFile: File | null = null;
+
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File is too large (max 5 MB).');
+        return;
+      }
+      coverFile = file;
+      if (fileNameEl) fileNameEl.textContent = file.name;
+      if (previewEl) {
+        const url = URL.createObjectURL(file);
+        previewEl.innerHTML = `<img src="${url}" class="rounded border" style="max-height:140px;max-width:100%;object-fit:cover">`;
+      }
+    });
+  }
 
   if (form) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorEl?.classList.add('d-none');
+      successEl?.classList.add('d-none');
+
+      const btn = document.getElementById('save-btn') as HTMLButtonElement;
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
 
       const name = (document.getElementById('name') as HTMLInputElement).value;
       const description = (document.getElementById('description') as HTMLTextAreaElement).value;
@@ -61,13 +109,31 @@ export function initGroupSettings(slug: string) {
       const isPublic = (document.getElementById('isPublic') as HTMLInputElement).checked;
 
       try {
-        const { group } = await updateGroup(slug, { name, description, imageUrl: imageUrl || null, isPublic });
-        router.navigate(`/groups/${group.slug}`);
+        // Upload cover if file selected
+        if (coverFile) {
+          const fd = new FormData();
+          fd.append('file', coverFile);
+          const res = await fetch(`/api/upload/cover/${slug}`, { method: 'POST', body: fd, credentials: 'same-origin' });
+          if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Cover upload failed.'); }
+        }
+
+        const patchData: any = { name, description, isPublic };
+        if (!coverFile) patchData.imageUrl = imageUrl || null;
+
+        const { group } = await updateGroup(slug, patchData);
+        successEl?.classList.remove('d-none');
+        // If slug changed, navigate to new URL
+        if (group.slug !== slug) {
+          router.navigate(`/groups/${group.slug}/settings`);
+        }
       } catch (err: any) {
         if (errorEl) {
           errorEl.textContent = err.message;
           errorEl.classList.remove('d-none');
         }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
       }
     });
   }
