@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String       @id @default(uuid())
+  name        String
+  email       String       @unique
+  password    String?
+  googleId    String?      @unique
+  avatarUrl   String?
+  createdAt   DateTime     @default(now())
+  groups      Group[]      @relation("CreatedGroups")
+  memberships Membership[]
+  threads     Thread[]
+  posts       Post[]
+}
+
+model Group {
+  id          String       @id @default(uuid())
+  name        String       @db.VarChar(100)
+  slug        String       @unique
+  description String       @db.Text
+  imageUrl    String?
+  isPublic    Boolean      @default(true)
+  createdBy   User         @relation("CreatedGroups", fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime     @default(now())
+  memberships Membership[]
+  threads     Thread[]
+}
+
+model Membership {
+  id       String   @id @default(uuid())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId  String
+  role     Role     @default(member)
+  joinedAt DateTime @default(now())
+
+  @@unique([userId, groupId])
+}
+
+enum Role {
+  owner
+  admin
+  member
+}
+
+model Thread {
+  id        String   @id @default(uuid())
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId   String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  title     String   @db.VarChar(200)
+  body      String   @db.Text
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  posts     Post[]
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  body      String   @db.Text
+  parent    Post?    @relation("PostReplies", fields: [parentId], references: [id])
+  parentId  String?
+  replies   Post[]   @relation("PostReplies")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String   @db.Text
+  expiresAt DateTime
+}
