@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "bootstrap": "^5.3.3",
+    "cropperjs": "^1.6.2",
     "dompurify": "^3.2.4",
     "marked": "^15.0.6",
     "navigo": "^8.11.1"

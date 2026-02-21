@@ -50,6 +50,10 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+function sanitizeSlug(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 // POST /api/groups
 router.post(
   '/',
@@ -62,7 +66,20 @@ router.post(
     try {
       const { name, description, imageUrl, isPublic } = req.body;
       const userId = (req.user as any).id;
-      const slug = await generateUniqueSlug(name);
+
+      let slug: string;
+      if (req.body.slug && typeof req.body.slug === 'string') {
+        slug = sanitizeSlug(req.body.slug);
+        if (!slug) {
+          return res.status(400).json({ error: 'Slug must contain at least one letter or number.' });
+        }
+        const existing = await prisma.group.findUnique({ where: { slug } });
+        if (existing) {
+          return res.status(409).json({ error: 'That slug is already taken.' });
+        }
+      } else {
+        slug = await generateUniqueSlug(name);
+      }
 
       const group = await prisma.group.create({
         data: {
@@ -150,19 +167,30 @@ router.patch(
   requireMember('admin'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const slug = paramString(req.params.slug);
+      const currentSlug = paramString(req.params.slug);
       const { name, description, imageUrl, isPublic } = req.body;
       const data: any = {};
-      if (name !== undefined) {
-        data.name = name;
-        data.slug = await generateUniqueSlug(name);
-      }
+      if (name !== undefined) data.name = name;
       if (description !== undefined) data.description = description;
       if (imageUrl !== undefined) data.imageUrl = imageUrl;
       if (isPublic !== undefined) data.isPublic = isPublic;
 
+      if (req.body.slug !== undefined && typeof req.body.slug === 'string') {
+        const newSlug = sanitizeSlug(req.body.slug);
+        if (!newSlug) {
+          return res.status(400).json({ error: 'Slug must contain at least one letter or number.' });
+        }
+        if (newSlug !== currentSlug) {
+          const existing = await prisma.group.findUnique({ where: { slug: newSlug } });
+          if (existing) {
+            return res.status(409).json({ error: 'That slug is already taken.' });
+          }
+          data.slug = newSlug;
+        }
+      }
+
       const group = await prisma.group.update({
-        where: { slug },
+        where: { slug: currentSlug },
         data,
       });
 

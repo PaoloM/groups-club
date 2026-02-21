@@ -9,7 +9,7 @@ export function getGroup(slug: string) {
   return api.get<{ group: any }>(`/api/groups/${slug}`);
 }
 
-export function createGroup(data: { name: string; description: string; imageUrl?: string; isPublic?: boolean }) {
+export function createGroup(data: { name: string; description: string; slug?: string; imageUrl?: string; isPublic?: boolean }) {
   return api.post<{ group: any }>('/api/groups', data);
 }
 

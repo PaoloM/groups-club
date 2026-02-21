@@ -2,6 +2,7 @@ import { getGroup, updateGroup, deleteGroup } from '../api/groups.js';
 import { getUser } from '../auth/state.js';
 import { escapeHtml } from '../utils/escapeHtml.js';
 import { router } from '../router.js';
+import { cropImage } from '../utils/imageCropper.js';
 
 export async function renderGroupSettings(slug: string): Promise<string> {
   try {
@@ -25,6 +26,12 @@ export async function renderGroupSettings(slug: string): Promise<string> {
           <input type="text" class="form-control" id="name" value="${escapeHtml(group.name)}" required maxlength="100">
         </div>
         <div class="mb-3">
+          <label for="slug" class="form-label">URL slug</label>
+          <input type="text" class="form-control" id="slug" value="${escapeHtml(group.slug)}" required maxlength="100"
+                 pattern="[a-z0-9][a-z0-9-]*[a-z0-9]" placeholder="e.g. nwsm">
+          <div class="form-text">Letters, numbers, and hyphens. Changing this will change the group's URL.</div>
+        </div>
+        <div class="mb-3">
           <label for="description" class="form-label">Description</label>
           <textarea class="form-control" id="description" rows="6" required>${escapeHtml(group.description)}</textarea>
         </div>
@@ -45,7 +52,7 @@ export async function renderGroupSettings(slug: string): Promise<string> {
               <div id="cover-preview" class="mt-2"></div>
             </div>
             <div class="tab-pane fade" id="cover-url-tab">
-              <input type="url" class="form-control" id="imageUrl" value="${escapeHtml(group.imageUrl || '')}">
+              <input type="url" class="form-control" id="imageUrl" value="${group.imageUrl?.startsWith('http') ? escapeHtml(group.imageUrl) : ''}">
             </div>
           </div>
         </div>
@@ -67,6 +74,10 @@ export async function renderGroupSettings(slug: string): Promise<string> {
   }
 }
 
+function toSlug(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 export function initGroupSettings(slug: string) {
   const form = document.getElementById('settings-form') as HTMLFormElement | null;
   const errorEl = document.getElementById('settings-error');
@@ -74,20 +85,40 @@ export function initGroupSettings(slug: string) {
   const fileInput = document.getElementById('cover-file') as HTMLInputElement | null;
   const fileNameEl = document.getElementById('cover-file-name');
   const previewEl = document.getElementById('cover-preview');
+  const nameInput = document.getElementById('name') as HTMLInputElement | null;
+  const slugInput = document.getElementById('slug') as HTMLInputElement | null;
   let coverFile: File | null = null;
+  let slugManuallyEdited = true; // pre-filled, don't overwrite by default
+
+  if (slugInput) {
+    slugInput.addEventListener('input', () => { slugManuallyEdited = true; });
+  }
+  if (nameInput) {
+    nameInput.addEventListener('input', () => {
+      if (!slugManuallyEdited && slugInput) {
+        slugInput.value = toSlug(nameInput.value);
+      }
+    });
+  }
 
   if (fileInput) {
-    fileInput.addEventListener('change', () => {
+    fileInput.addEventListener('change', async () => {
       const file = fileInput.files?.[0];
       if (!file) return;
       if (file.size > 5 * 1024 * 1024) {
         alert('File is too large (max 5 MB).');
+        fileInput.value = '';
         return;
       }
-      coverFile = file;
+      const cropped = await cropImage(file, 2.8);
+      if (!cropped) {
+        fileInput.value = '';
+        return;
+      }
+      coverFile = new File([cropped], file.name, { type: cropped.type });
       if (fileNameEl) fileNameEl.textContent = file.name;
       if (previewEl) {
-        const url = URL.createObjectURL(file);
+        const url = URL.createObjectURL(coverFile);
         previewEl.innerHTML = `<img src="${url}" class="rounded border" style="max-height:140px;max-width:100%;object-fit:cover">`;
       }
     });
@@ -101,9 +132,10 @@ export function initGroupSettings(slug: string) {
 
       const btn = document.getElementById('save-btn') as HTMLButtonElement;
       btn.disabled = true;
-      btn.textContent = 'Saving...';
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving...';
 
       const name = (document.getElementById('name') as HTMLInputElement).value;
+      const newSlug = (document.getElementById('slug') as HTMLInputElement).value;
       const description = (document.getElementById('description') as HTMLTextAreaElement).value;
       const imageUrl = (document.getElementById('imageUrl') as HTMLInputElement).value;
       const isPublic = (document.getElementById('isPublic') as HTMLInputElement).checked;
@@ -117,7 +149,7 @@ export function initGroupSettings(slug: string) {
           if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Cover upload failed.'); }
         }
 
-        const patchData: any = { name, description, isPublic };
+        const patchData: any = { name, slug: newSlug, description, isPublic };
         if (!coverFile) patchData.imageUrl = imageUrl || null;
 
         const { group } = await updateGroup(slug, patchData);
