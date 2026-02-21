@@ -17,7 +17,7 @@ export function renderCreateGroup(): string {
             <label for="slug" class="form-label">URL slug</label>
             <input type="text" class="form-control" id="slug" required maxlength="100"
                    pattern="[a-z0-9][a-z0-9-]*[a-z0-9]" placeholder="e.g. nwsm">
-            <div class="form-text">Letters, numbers, and hyphens. Auto-generated from name, but you can customize it.</div>
+            <div class="form-text">Letters, numbers, and hyphens. Used in the group URL.</div>
           </div>
           <div class="mb-3">
             <label for="description" class="form-label">Description</label>
@@ -54,27 +54,13 @@ export function renderCreateGroup(): string {
   `;
 }
 
-function toSlug(str: string): string {
-  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
-
 export function initCreateGroup() {
   const form = document.getElementById('create-group-form') as HTMLFormElement;
   const errorEl = document.getElementById('create-error')!;
   const fileInput = document.getElementById('cover-file') as HTMLInputElement;
   const fileNameEl = document.getElementById('cover-file-name')!;
   const previewEl = document.getElementById('cover-preview')!;
-  const nameInput = document.getElementById('name') as HTMLInputElement;
-  const slugInput = document.getElementById('slug') as HTMLInputElement;
   let coverFile: File | null = null;
-  let slugManuallyEdited = false;
-
-  slugInput.addEventListener('input', () => { slugManuallyEdited = true; });
-  nameInput.addEventListener('input', () => {
-    if (!slugManuallyEdited) {
-      slugInput.value = toSlug(nameInput.value);
-    }
-  });
 
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0];

@@ -1,21 +1,10 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import slugify from 'slugify';
 import prisma from '../lib/prisma.js';
 import { requireAuth, requireMember, requireSiteOwner } from '../middleware/auth.js';
 import { validate } from '../middleware/validation.js';
 import { paramString } from '../types.js';
 
 const router = Router();
-
-async function generateUniqueSlug(name: string): Promise<string> {
-  const base = slugify(name, { lower: true, strict: true });
-  let slug = base;
-  let counter = 1;
-  while (await prisma.group.findUnique({ where: { slug } })) {
-    slug = `${base}-${++counter}`;
-  }
-  return slug;
-}
 
 // GET /api/groups
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
@@ -60,6 +49,7 @@ router.post(
   requireAuth,
   validate([
     { field: 'name', required: true, type: 'string', minLength: 1, maxLength: 100 },
+    { field: 'slug', required: true, type: 'string', minLength: 1, maxLength: 100 },
     { field: 'description', required: true, type: 'string', minLength: 1 },
   ]),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -67,18 +57,13 @@ router.post(
       const { name, description, imageUrl, isPublic } = req.body;
       const userId = (req.user as any).id;
 
-      let slug: string;
-      if (req.body.slug && typeof req.body.slug === 'string') {
-        slug = sanitizeSlug(req.body.slug);
-        if (!slug) {
-          return res.status(400).json({ error: 'Slug must contain at least one letter or number.' });
-        }
-        const existing = await prisma.group.findUnique({ where: { slug } });
-        if (existing) {
-          return res.status(409).json({ error: 'That slug is already taken.' });
-        }
-      } else {
-        slug = await generateUniqueSlug(name);
+      const slug = sanitizeSlug(req.body.slug);
+      if (!slug) {
+        return res.status(400).json({ error: 'Slug must contain at least one letter or number.' });
+      }
+      const existing = await prisma.group.findUnique({ where: { slug } });
+      if (existing) {
+        return res.status(409).json({ error: 'That slug is already taken.' });
       }
 
       const group = await prisma.group.create({

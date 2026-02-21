@@ -74,10 +74,6 @@ export async function renderGroupSettings(slug: string): Promise<string> {
   }
 }
 
-function toSlug(str: string): string {
-  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
-
 export function initGroupSettings(slug: string) {
   const form = document.getElementById('settings-form') as HTMLFormElement | null;
   const errorEl = document.getElementById('settings-error');
@@ -85,21 +81,7 @@ export function initGroupSettings(slug: string) {
   const fileInput = document.getElementById('cover-file') as HTMLInputElement | null;
   const fileNameEl = document.getElementById('cover-file-name');
   const previewEl = document.getElementById('cover-preview');
-  const nameInput = document.getElementById('name') as HTMLInputElement | null;
-  const slugInput = document.getElementById('slug') as HTMLInputElement | null;
   let coverFile: File | null = null;
-  let slugManuallyEdited = true; // pre-filled, don't overwrite by default
-
-  if (slugInput) {
-    slugInput.addEventListener('input', () => { slugManuallyEdited = true; });
-  }
-  if (nameInput) {
-    nameInput.addEventListener('input', () => {
-      if (!slugManuallyEdited && slugInput) {
-        slugInput.value = toSlug(nameInput.value);
-      }
-    });
-  }
 
   if (fileInput) {
     fileInput.addEventListener('change', async () => {
